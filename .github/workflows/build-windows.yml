@@ -8,27 +8,36 @@ env:
   DEFAULT_RS_PUB_KEY: ${{ secrets.RD_PUB_KEY }}
   RUST_VERSION: "1.75"
   FLUTTER_VERSION: "3.24.5"
+  LLVM_VERSION: "15.0.6"
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+  VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
 
 jobs:
   build-windows-x64:
-    runs-on: windows-latest
+    runs-on: windows-2022
     defaults:
       run:
         shell: pwsh
     steps:
+      - name: Export GitHub Actions cache environment variables
+        uses: actions/github-script@v6
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@v1
         with:
-          toolchain: ${{ env.RUST_VERSION }}
-          targets: x86_64-pc-windows-msvc
+          version: ${{ env.LLVM_VERSION }}
 
       - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@v2.12.0
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
@@ -36,23 +45,44 @@ jobs:
       - name: Enable Flutter Windows desktop
         run: flutter config --enable-windows-desktop
 
-      - name: Set LLVM path
+      - name: Replace flutter engine
         run: |
-          "LIBCLANG_PATH=C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_ENV -Append
-      
-      - name: Setup vcpkg and install deps
+          flutter precache --windows
+          Invoke-WebRequest -Uri https://github.com/rustdesk/engine/releases/download/main/windows-x64-release.zip -OutFile windows-x64-release.zip
+          Expand-Archive -Path windows-x64-release.zip -DestinationPath windows-x64-release
+          mv -Force windows-x64-release/* C:/hostedtoolcache/windows/flutter/stable-${{ env.FLUTTER_VERSION }}-x64/bin/cache/artifacts/engine/windows-x64-release/
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-pc-windows-msvc
+          components: rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: windows-2022
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: C:\vcpkg
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: false
+
+      - name: Install vcpkg dependencies
+        shell: bash
         run: |
-          git clone https://github.com/microsoft/vcpkg "$env:USERPROFILE\vcpkg"
-          & "$env:USERPROFILE\vcpkg\bootstrap-vcpkg.bat"
-          "VCPKG_ROOT=$env:USERPROFILE\vcpkg" | Out-File -FilePath $env:GITHUB_ENV -Append
-          cd "$env:GITHUB_WORKSPACE"
-          & "$env:USERPROFILE\vcpkg\vcpkg" install --triplet x64-windows-static
+          $VCPKG_ROOT/vcpkg install \
+            --triplet x64-windows-static \
+            --x-install-root="$VCPKG_ROOT/installed"
 
       - name: Build
-        run: python3 build.py --portable --flutter
+        run: python3 build.py --portable --hwcodec --flutter --vram --skip-portable-pack
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: rustdesk-windows-x64
-          path: "*.exe"
+          path: |
+            flutter/build/windows/x64/runner/Release
