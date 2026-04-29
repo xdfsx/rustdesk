@@ -36,9 +36,8 @@ jobs:
           flutter config --enable-windows-desktop
           flutter doctor -v
 
-      - name: Install LLVM
+      - name: Set LLVM path
         run: |
-          choco install -y llvm --version=15.0.6
           echo "LIBCLANG_PATH=C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Setup vcpkg
