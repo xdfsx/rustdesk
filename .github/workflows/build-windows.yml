@@ -48,7 +48,7 @@ jobs:
       - name: Install vcpkg deps
         run: |
           & "$env:VCPKG_ROOT\vcpkg" install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static
-
+     
       - name: Build
         run: python3 build.py --portable --flutter
 
