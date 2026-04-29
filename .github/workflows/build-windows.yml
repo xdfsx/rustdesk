@@ -39,16 +39,15 @@ jobs:
       - name: Set LLVM path
         run: |
           echo "LIBCLANG_PATH=C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_ENV -Append
-
       - name: Setup vcpkg
         run: |
-          git clone https://github.com/microsoft/vcpkg $env:USERPROFILE\vcpkg
-          & $env:USERPROFILE\vcpkg\bootstrap-vcpkg.bat
+          git clone https://github.com/microsoft/vcpkg "$env:USERPROFILE\vcpkg"
+          & "$env:USERPROFILE\vcpkg\bootstrap-vcpkg.bat"
           echo "VCPKG_ROOT=$env:USERPROFILE\vcpkg" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Install vcpkg deps
         run: |
-          $env:VCPKG_ROOT\vcpkg install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static
+          & "$env:VCPKG_ROOT\vcpkg" install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static
 
       - name: Build
         run: python3 build.py --portable --flutter
