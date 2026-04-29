@@ -1,0 +1,61 @@
+name: Build Custom RustDesk Windows x64
+
+on:
+  workflow_dispatch:
+
+env:
+  DEFAULT_RENDEZVOUS_SERVER: ${{ secrets.RD_SERVER }}
+  DEFAULT_RS_PUB_KEY: ${{ secrets.RD_PUB_KEY }}
+  RUST_VERSION: "1.75"
+  FLUTTER_VERSION: "3.24.5"
+  LLVM_VERSION: "15.0.6"
+
+jobs:
+  build-windows-x64:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-pc-windows-msvc
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+
+      - name: Enable Flutter Windows desktop
+        run: |
+          flutter config --enable-windows-desktop
+          flutter doctor -v
+
+      - name: Install LLVM
+        run: |
+          choco install -y llvm --version=15.0.6
+          echo "LIBCLANG_PATH=C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Setup vcpkg
+        run: |
+          git clone https://github.com/microsoft/vcpkg $env:USERPROFILE\vcpkg
+          & $env:USERPROFILE\vcpkg\bootstrap-vcpkg.bat
+          echo "VCPKG_ROOT=$env:USERPROFILE\vcpkg" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Install vcpkg deps
+        run: |
+          $env:VCPKG_ROOT\vcpkg install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static
+
+      - name: Build
+        run: python3 build.py --portable --flutter
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustdesk-windows-x64
+          path: "*.exe"
