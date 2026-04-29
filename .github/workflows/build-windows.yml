@@ -40,11 +40,11 @@ jobs:
         run: |
           "LIBCLANG_PATH=C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_ENV -Append
       
-      - name: Setup vcpkg and install deps
+      - name: Install vcpkg deps
         run: |
+          Remove-Item "$env:GITHUB_WORKSPACE\vcpkg.json" -Force
           git clone https://github.com/microsoft/vcpkg "$env:USERPROFILE\vcpkg"
           & "$env:USERPROFILE\vcpkg\bootstrap-vcpkg.bat"
-          cd "$env:USERPROFILE"
           & "$env:USERPROFILE\vcpkg\vcpkg" install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static
           "VCPKG_ROOT=$env:USERPROFILE\vcpkg" | Out-File -FilePath $env:GITHUB_ENV -Append
 
